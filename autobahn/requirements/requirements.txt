@@ -1,0 +1,5 @@
+boto3==1.4.7
+aws-xray-sdk==0.92.2
+raven
+retrying
+datadog

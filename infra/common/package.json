@@ -1,0 +1,12 @@
+{
+  "name": "autobahn-common",
+  "version": "1.0.0",
+  "description": "Serverless to autobahn bad bots",
+  "author": "Ahharu",
+  "dependencies": {
+    "serverless": "1.26.0",
+    "serverless-secrets-plugin": "0.1.0",
+    "serverless-pseudo-parameters": "1.2.0",
+    "serverless-plugin-tracing": "2.0.0"
+  }
+}

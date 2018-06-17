@@ -1,0 +1,64 @@
+
+service: autobahn
+
+plugins:
+  - serverless-secrets-plugin
+  - serverless-pseudo-parameters
+  - serverless-plugin-tracing
+
+provider:
+  name: aws
+  runtime: java8
+  timeout: 300
+  stage: dev
+  stackTags:
+    SERVICE: "autobahn"
+  tracing: true
+  region: eu-west-1
+  iamRoleStatements:
+     - Effect: "Allow"
+       Action:
+         - "dynamodb:*"
+         - "s3:*"
+         - "xray:PutTraceSegments"
+         - "xray:PutTelemetryRecords"
+         - "logs:*"
+       Resource: "*"
+
+custom:
+  secrets: ${file(secrets.${opt:stage, self:provider.stage}.${opt:region, self:provider.region}.yml)}
+  variables: ${file(variables.${opt:stage, self:provider.stage}.yml)}
+
+functions:
+  dynamoToNaclBan:
+    runtime: python3.6
+    package:
+      artifact: ../../elb2dynamo/target/elb2dynamo.zip
+    environment:
+      SENTRY_DSN: "${self:custom.secrets.sentryDSN}"
+      SENTRY_ENVIRONMENT: ${opt:stage, self:provider.stage}
+      DYNAMO_TABLE: "${opt:stage, self:provider.stage}-Autobahn"
+      COUNTRY_LIST: "${self:custom.secrets.csv_countries}"
+    memorySize: 512
+    handler: src.lambda_function.elb2dynamo.lambda_handler
+    events:
+      - schedule:
+          rate: cron(5 minutes)
+
+resources:
+  Resources:
+    BrazeUserTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: "${opt:stage, self:provider.stage}-Autobahn"
+        AttributeDefinitions:
+          - AttributeName: ip
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ip
+            KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 10
+          WriteCapacityUnits: 10

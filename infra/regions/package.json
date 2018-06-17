@@ -1,0 +1,12 @@
+{
+  "name": "favourite-braze-common",
+  "version": "1.0.0",
+  "description": "Serverless functions to update favourite retailers and products in Braze",
+  "author": "Pixels",
+  "dependencies": {
+    "serverless": "1.26.0",
+    "serverless-secrets-plugin": "0.1.0",
+    "serverless-pseudo-parameters": "1.2.0",
+    "serverless-plugin-tracing": "2.0.0"
+  }
+}

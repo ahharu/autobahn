@@ -1,0 +1,146 @@
+
+service: autobahn
+
+plugins:
+  - serverless-secrets-plugin
+  - serverless-pseudo-parameters
+  - serverless-plugin-tracing
+
+provider:
+  name: aws
+  versionFunctions: false
+  runtime: java8
+  timeout: 300
+  stage: dev
+  stackTags:
+    SERVICE: "autobahn"
+  tracing: true
+  region: eu-west-1
+  iamRoleStatements:
+     - Effect: "Allow"
+       Action:
+         - "dynamodb:*"
+         - "s3:*"
+         - "ec2:*"
+         - "xray:PutTraceSegments"
+         - "xray:PutTelemetryRecords"
+         - "logs:*"
+       Resource: "*"
+
+custom:
+  secrets: ${file(secrets.${opt:stage, self:provider.stage}.yml)}
+  variables: ${file(variables.${opt:stage, self:provider.stage}.yml)}
+  devScheduleEnabled:
+    dev: true
+    prod: false
+  prodScheduleEnabled:
+    dev: false
+    prod: true
+package:
+  artifact: ../../autobahn/target/autobahn.zip
+
+functions:
+  autobahn:
+    runtime: python3.6
+    package:
+      artifact: ../../autobahn/target/autobahn.zip
+    handler: src.lambda_function.autobahn.lambda_handler
+    environment:
+      COUNTRIES: ${self:custom.variables.countries}
+      SENTRY_DSN: "${self:custom.secrets.sentryDSN}"
+      SENTRY_ENVIRONMENT: ${opt:stage, self:provider.stage}
+      DYNAMO_TABLE: "${opt:stage, self:provider.stage}-Autobahn"
+      DATADOG_API_KEY: "${self:custom.secrets.datadogApiKey}"
+      DATADOG_APP_KEY: "${self:custom.secrets.datadogAppKey}"
+      NACL_RULE_LIMIT: ${self:custom.variables.naclRuleLimit}
+      NACL_RULE_MAX: ${self:custom.variables.naclRuleMax}
+      BAN_TIME_MINUTES: ${self:custom.variables.banTimeMinutes}
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - AutobahnTable
+              - StreamArn
+          batchSize: 15
+          enabled: true
+  unbanner:
+    runtime: python3.6
+    package:
+      artifact: ../../unbanner/target/unbanner.zip
+    handler: src.lambda_function.unbanner.lambda_handler
+    environment:
+      COUNTRIES: ${self:custom.variables.countries}
+      SENTRY_DSN: "${self:custom.secrets.sentryDSN}"
+      SENTRY_ENVIRONMENT: ${opt:stage, self:provider.stage}
+      DYNAMO_TABLE: "${opt:stage, self:provider.stage}-Autobahn"
+      BAN_TIME_MINUTES: ${self:custom.variables.banTimeMinutes}
+    events:
+      - schedule: "rate(${self:custom.variables.windowMinutes} minutes)"
+  elbBotDetector:
+    runtime: python3.6
+    package:
+      artifact: ../../elb_bot_detector/target/elb_bot_detector.zip
+    handler: src.lambda_function.elb_bot_detector.lambda_handler
+    environment:
+      SENTRY_DSN: "${self:custom.secrets.sentryDSN}"
+      SENTRY_ENVIRONMENT: ${opt:stage, self:provider.stage}
+      DYNAMO_TABLE: "${opt:stage, self:provider.stage}-Autobahn"
+      WHITELISTED_BOTS: ${self:custom.variables.whitelistedBots}
+      WHITELISTED_IPS: ${self:custom.variables.whitelistedIps}
+      WINDOW_MINUTES: ${self:custom.variables.windowMinutes}
+      REQUEST_TRESHOLD: ${self:custom.variables.requestTreshold}
+    events:
+      - schedule: 
+          rate: "rate(${self:custom.variables.windowMinutes} minutes)"
+          enabled: ${self:custom.devScheduleEnabled.${opt:stage, self:provider.stage}}
+          input:
+            country: dev
+            project: web
+      - schedule: 
+          rate: "rate(${self:custom.variables.windowMinutes} minutes)"
+          enabled: ${self:custom.prodScheduleEnabled.${opt:stage, self:provider.stage}}
+          input:
+            country: es
+            project: web
+      - schedule: 
+          rate: "rate(${self:custom.variables.windowMinutes} minutes)"
+          enabled: ${self:custom.prodScheduleEnabled.${opt:stage, self:provider.stage}}
+          input:
+            country: cl
+            project: web
+      - schedule: 
+          rate: "rate(${self:custom.variables.windowMinutes} minutes)"
+          enabled: ${self:custom.prodScheduleEnabled.${opt:stage, self:provider.stage}}
+          input:
+            country: co
+            project: web
+      - schedule: 
+          rate: "rate(${self:custom.variables.windowMinutes} minutes)"
+          enabled: ${self:custom.prodScheduleEnabled.${opt:stage, self:provider.stage}}
+          input:
+            country: mx
+            project: web
+      - schedule: 
+          rate: "rate(${self:custom.variables.windowMinutes} minutes)"
+          enabled: ${self:custom.prodScheduleEnabled.${opt:stage, self:provider.stage}}
+          input:
+            country: se
+            project: web
+resources:
+  Resources:
+    AutobahnTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: "${opt:stage, self:provider.stage}-Autobahn"
+        AttributeDefinitions:
+          - AttributeName: ip
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ip
+            KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5

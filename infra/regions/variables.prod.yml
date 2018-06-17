@@ -1,0 +1,2 @@
+dynamoEndpoint: https://dynamodb.eu-west-1.amazonaws.com
+dynamoRegion: eu-west-1

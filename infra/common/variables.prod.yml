@@ -1,0 +1,9 @@
+dynamoRegion: eu-west-1
+countries: es,mx,cl,co,se
+banTimeMinutes: 300
+whitelistedBots: googlebot.com,google.com,bing.com,msn.com,search.msn.com,yse.yahoo.net
+whitelistedIps: 217.126.85.82,81.45.44.180,213.98.123.229,187.190.21.209,52.31.154.23
+naclRuleLimit: 37
+naclRuleMax: 100
+windowMinutes: 5
+requestTreshold: 130
